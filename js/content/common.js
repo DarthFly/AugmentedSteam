@@ -846,7 +846,7 @@ let Currency = (function() {
     }
 
     async function _getRates() {
-        let toCurrencies = [self.storeCurrency,];
+        let toCurrencies = [self.storeCurrency];
         if (self.customCurrency !== self.storeCurrency) {
             toCurrencies.push(self.customCurrency);
         }
@@ -1869,6 +1869,10 @@ let Highlights = (function(){
                     .apphub_AppName.es_highlighted_${name} { background: none !important; color: ${color}; }
                 `);
             }
+//=======
+//                    .es_highlighted_${name}.tab_item.focus { background: ${color} linear-gradient( to right, #c6e6f8 5%,#95bcd3 95%) !important; }
+//                    .carousel_items .es_highlighted_${name}.price_inline, .curator_giant_capsule.es_highlighted_${name}, .hero_capsule.es_highlighted_${name} { outline: solid ${color}; }
+//>>>>>>> Stashed changes
 
             let style = document.createElement("style");
             style.id = "es_highlight_styles";
@@ -1907,17 +1911,17 @@ let Highlights = (function(){
                 // don't break
 
             default: {
-                let r = node.querySelector(".ds_flag");
+                /*let r = node.querySelector(".ds_flag");
                 if (r) { r.remove(); }
                 r = node.querySelector(".ds_flagged");
                 if (r) {
                     r.classList.remove("ds_flagged");
-                }
+                }*/
                 break;
             }
         }
 
-        node.classList.remove("ds_flagged");
+        //node.classList.remove("ds_flagged");
     }
 
     function highlightItem(node, name) {

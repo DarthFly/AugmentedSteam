@@ -407,6 +407,8 @@ let ProfileActivityPageClass = (function(){
     }
 
     ProfileActivityPageClass.prototype.observeChanges = function() {
+        let node = document.querySelector("#blotter_content");
+        if (!node) { return; }
         let that = this;
         let observer = new MutationObserver(() => {
             that.highlightFriendsActivity();
@@ -414,7 +416,7 @@ let ProfileActivityPageClass = (function(){
             CommentHandler.hideSpamComments();
         });
 
-        observer.observe(document.querySelector("#blotter_content"), { subtree: true, childList: true });
+        observer.observe(node, { subtree: true, childList: true });
     };
 
     return ProfileActivityPageClass;
@@ -1105,7 +1107,12 @@ let GamesPageClass = (function(){
         let countNeverPlayed = 0;
 
         let time = 0;
+        let gameIndex = 1;
         for (let game of games) {
+            const el = document.querySelector('#game_' + game['appid'] + ' .gameListRowItemName');
+            el.innerHTML = '['+gameIndex+'] ' + el.innerHTML;
+            gameIndex++;
+
             if (!game['hours_forever']) {
                 countNeverPlayed++;
                 continue;
@@ -4586,6 +4593,7 @@ let EditGuidePageClass = (function(){
             break;
 
         case /^\/(?:id|profiles)\/.+\/(home|myactivity)\/?$/.test(path):
+        case /^\/groups\/.*/.test(path):
             (new ProfileActivityPageClass());
             break;
 

@@ -653,7 +653,7 @@ class AppPageClass extends StorePageClass {
         this.addOwnedActionsButtons();
         this.addSupport();
 
-        Highlights.addTitleHighlight(this.appid);
+        //Highlights.addTitleHighlight(this.appid);
     }
 
     initHdPlayer() {
@@ -912,8 +912,16 @@ class AppPageClass extends StorePageClass {
             inactiveStyle = "display:none;";
             activeStyle = "";
         }
+        //const selector = ".queue_actions_ctn > :last-child";
+        const selector = ".queue_control_button.queue_btn_follow";
 
-        HTML.beforeBegin(".queue_actions_ctn > :last-child",
+        /*HTML.afterEnd(selector,
+            `<div id='esi-store-user-note' class='esi-note esi-note--store ${cssClass}'>${noteText}</div>`);
+
+        HTML.afterEnd(selector,
+            ` <div class="queue_control_button js-user-note-button">*/
+
+        HTML.beforeBegin(selector,
             `<div class="queue_control_button js-user-note-button">
                 <div id="es_add_note" class="btnv6_blue_hoverfade btn_medium queue_btn_inactive" style="${inactiveStyle}">
                     <span>${Localization.str.user_note.add}</span>
