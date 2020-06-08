@@ -3460,6 +3460,7 @@ let WishlistPageClass = (function(){
             this.addExportWishlistButton();
             this.addEmptyWishlistButton();
             this.addUserNotesHandlers();
+            this.addNewSortingOptions();
         };
 
         if (document.querySelector("#throbber").style.display === "none") {
@@ -3540,6 +3541,138 @@ let WishlistPageClass = (function(){
         document.querySelector("#es_empty_wishlist").addEventListener("click", () => {
             emptyWishlist();
         });
+    };
+
+    WishlistPageClass.prototype.addNewSortingOptions = function() {
+        if (!myWishlist) { return; }
+        let wishlistSortOptions = document.getElementById("dropdown_sort");
+        // Add element to the html tag, in case steam is not loaded, but probably it is.
+        wishlistSortOptions.dataset.dropdownHtml +=
+            '<div class="item" data-dropdown-value="reviews_percent" onclick="g_Wishlist.SetFilterFromDropdown(\'sort\', this)">Review Percent</div>\t'
+        const elements = document.getElementsByClassName('dropdown_container');
+
+        const newOptions = [
+            {label: 'All Reviews Percent', id: 'aug_reviews_percent'},
+            {label: 'Reviews Score & Percent', id: 'aug_reviews_score_percent'},
+        ];
+        for (let dropdownContainer of elements) {
+            if (dropdownContainer.innerHTML && dropdownContainer.innerHTML.indexOf("g_Wishlist.SetFilterFromDropdown('sort'") !== -1) {
+                for (let optionValue of newOptions) {
+                    let ddElement = document.createElement("div");
+                    ddElement.dataset.dropdownValue = optionValue.id;
+                    ddElement.className = 'item';
+                    ddElement.innerText = optionValue.label;
+                    ddElement.id = optionValue.id;
+
+                    HTML.beforeEnd(dropdownContainer, ddElement);
+
+                    ddElement = document.getElementById(optionValue.id);
+                    ddElement.addEventListener("click", function () {
+                        ExtensionLayer.runInPageContext((textContent, dropdownValue) => {
+                            g_Wishlist.rgFilterSettings['sort'] = dropdownValue;
+                            $J('#label_sort').text(textContent);
+                            g_Wishlist.Update();
+                            g_Wishlist.SaveSettings();
+                        }, [this.textContent, this.dataset.dropdownValue]);
+                    });
+                }
+                break;
+            }
+        }
+
+        ExtensionLayer.runInPageContext(() => {
+            let oldUpdate = CWishlistController.prototype.Update;
+
+            CWishlistController.prototype.Update = function(bForceSort) {
+                if (this.rgFilterSettings.sort.indexOf('aug_') === -1) {
+                    oldUpdate.call(g_Wishlist, bForceSort);
+                    return;
+                }
+
+                var $root = $J('#wishlist_ctn');
+
+                for (var i = 0; i < this.rgTermMatchedElements.length; i++) {
+                    this.rgTermMatchedElements[i].removeClass('term_matched')
+                }
+
+                var _this = this;
+
+                if (this.rgFilterSettings.last_sort != this.rgFilterSettings.sort || bForceSort) {
+                    if (this.rgFilterSettings.sort == 'aug_reviews_percent') {
+                        this.rgAllApps.sort(function (a, b) {
+                            const delta = g_rgAppInfo[b].reviews_percent - g_rgAppInfo[a].reviews_percent;
+                            return delta !== 0 ? delta :
+                                parseInt(g_rgAppInfo[b].reviews_total.replace(',', '')) - parseInt(g_rgAppInfo[a].reviews_total.replace(',', ''));;
+                        });
+                    } else if (this.rgFilterSettings.sort == 'aug_reviews_score_percent') {
+                        this.rgAllApps.sort(function (a, b) {
+                            const delta = (g_rgAppInfo[b].review_score + 1) * g_rgAppInfo[b].reviews_percent
+                                - (g_rgAppInfo[a].review_score + 1) * g_rgAppInfo[a].reviews_percent;
+
+                            if (g_rgAppInfo[b].reviews_percent > 99) {
+                                console.log(g_rgAppInfo[b]);
+                                console.log(g_rgAppInfo[a]);
+                                console.log(delta);
+                                console.log(parseInt(g_rgAppInfo[b].reviews_total.replace(',', '')) - parseInt(g_rgAppInfo[a].reviews_total.replace(',', '')));
+                            }
+                            return delta !== 0 ? delta :
+                                parseInt(g_rgAppInfo[b].reviews_total.replace(',', '')) - parseInt(g_rgAppInfo[a].reviews_total.replace(',', ''));
+                        });
+                    } else {
+                        console.log("Unknown sort order", this.rgFilterSettings.sort);
+                    }
+                }
+
+                this.rgVisibleApps = [];
+
+                // Ok, now build a list of sorted/filtered apps
+                for (var i = 0; i < this.rgAllApps.length; i++) {
+                    if (!this.rgElements[this.rgAllApps[i]]) {
+                        continue;
+                    }
+                    if (this.BPassesFilters(this.rgAllApps[i], this.rgFilterSettings)) {
+                        this.rgVisibleApps.push(this.rgAllApps[i]);
+                    }
+                }
+
+                if (this.rgVisibleApps.length == this.rgAllApps.length && this.rgFilterSettings.sort == "order" && g_bCanEdit) {
+
+                    $J('#wishlist_ctn').addClass('sort_order');
+
+                    $J.each(this.rgElements, function (i, j) {
+                        $J('.hover_handle', j).attr('draggable', true);
+                    });
+
+                } else {
+                    $J('#wishlist_ctn').removeClass('sort_order');
+                    $J.each(this.rgElements, function (i, j) {
+                        $J('.hover_handle', j).attr('draggable', false);
+                    });
+                }
+
+                this.rgFilterSettings.last_sort = this.rgFilterSettings.sort;
+
+                var el = this.elContainer[0].children[0];
+                var nTargetRowHeight = $J(el).outerHeight(true);
+                if (nTargetRowHeight > 0) {
+                    this.nRowHeight = nTargetRowHeight;
+                }
+
+                $root.css('height', (this.nRowHeight * this.rgVisibleApps.length) + 'px');
+
+                this.UpdateFilterDisplay();
+                this.OnScroll();
+                this.OnResize();
+
+                if (this.rgVisibleApps.length == 0) {
+                    $J('#nothing_to_see_here').show();
+                } else {
+                    $J('#nothing_to_see_here').hide();
+                }
+            }
+
+        });
+
     };
 
     async function emptyWishlist() {
