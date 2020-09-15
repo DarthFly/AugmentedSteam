@@ -1033,14 +1033,9 @@ class SteamCommunity extends Api {
             throw new Error("Failed to retrieve steamID from profile");
         }
 
-        let userCountry = await SteamStore.country();
-        if (!userCountry) {
-            throw new Error("Retrieved steamID but failed to detect user country");
-        }
-
         self.logout(true);
 
-        let value = { steamId, profilePath, userCountry };
+        let value = { steamId, profilePath };
         LocalStorage.set("login", value);
 
         return value;
@@ -1049,7 +1044,17 @@ class SteamCommunity extends Api {
     static logout(newLogout = LocalStorage.has("login")) {
         if (newLogout) {
             LocalStorage.remove("login");
+            LocalStorage.remove("storeCountry");
             CacheStorage.remove("currency");
+        }
+    }
+
+    // TODO This and (at least) the login calls don't seem appropriate in this class
+    static storeCountry(newCountry) {
+        if (newCountry) {
+            LocalStorage.set("storeCountry", newCountry);
+        } else {
+            return LocalStorage.get("storeCountry");
         }
     }
 
@@ -1593,6 +1598,7 @@ let actionCallbacks = new Map([
 
     ["login", SteamCommunity.login],
     ["logout", SteamCommunity.logout],
+    ["storecountry", SteamCommunity.storeCountry],
     ["cards", SteamCommunity.cards],
     ["stats", SteamCommunity.stats],
     ["coupon", SteamCommunity.getCoupon],

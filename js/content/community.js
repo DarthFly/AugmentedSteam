@@ -859,12 +859,12 @@ let ProfileHomePageClass = (function(){
                     document.head.appendChild(stylesheet);
 
                     let container = document.createElement("div");
-                    container.classList.add("profile_lny_wrapper");
+                    container.classList.add("profile_golden_wrapper");
 
                     let profilePageNode = document.querySelector(".responsive_page_template_content .profile_page");
                     DOMHelper.wrap(container, profilePageNode);
 
-                    profilePageNode.classList.add("lnyprofile");
+                    profilePageNode.classList.add("golden_profile");
 
                     HTML.afterBegin(profilePageNode,
                         `<div class="lny_sides_position">
@@ -890,7 +890,7 @@ let ProfileHomePageClass = (function(){
 
                     HTML.beforeBegin(
                         ".profile_header",
-                        `<div class="lny_header">
+                        `<div class="golden_profile_header">
                             <div class="lny_pig_center"></div>
                         </div>`);
 
@@ -911,13 +911,13 @@ let ProfileHomePageClass = (function(){
                 default:
                     let styleUrl = ExtensionResources.getURL("img/profile_styles/" + style + "/style.css");
                     let headerImg = ExtensionResources.getURL("img/profile_styles/" + style + "/header.jpg");
-                    let showcase = ExtensionResources.getURL("img/profile_styles/" + style + "/showcase.png");
+                    //let showcase = ExtensionResources.getURL("img/profile_styles/" + style + "/showcase.png");
 
                     stylesheet.href = styleUrl;
                     document.head.appendChild(stylesheet);
 
                     document.querySelector(".profile_header_bg_texture").style.backgroundImage = "url('" + headerImg + "')";
-                    document.querySelectorAll(".profile_customization").forEach(node => node.style.backgroundImage = "url('" + showcase + "')");
+                    //document.querySelectorAll(".profile_customization").forEach(node => node.style.backgroundImage = "url('" + showcase + "')");
                     break;
             }
             stylesheet = null;
@@ -1238,167 +1238,236 @@ let GamesPageClass = (function(){
 
 let ProfileEditPageClass = (function(){
 
+    let _gameFilterNode;
+    let _listNode;
+    let _imagesNode;
+
+    let _selectedAppid = null;
+    let _selectedImage = null;
+
     function ProfileEditPageClass() {
         ProfileData.clearOwn().then(() => {
-            if (!window.location.pathname.includes("/settings")) {
-                this.addBackgroundSelection();
-                this.addStyleSelection();
-            }
+            if (document.querySelector(`[class^="profileeditshell_PageContent_"]`)) { return; }
+
+            return new Promise(resolve => {
+                new MutationObserver((records, observer) => {
+                    for (let { addedNodes } of records) {
+                        for (let node of addedNodes) {
+                            if (node.nodeType !== Node.ELEMENT_NODE || !node.querySelector(`[class^="profileeditshell_PageContent_"]`)) { continue; }
+    
+                            observer.disconnect();
+                            resolve();
+                        }
+                    }
+                }).observe(document.getElementById("application_root"), {"childList": true});
+            });
+        }).then(() => {
+            this.addBackgroundSelection();
+            this.addStyleSelection();
         })
     }
 
-    function showBgFormLoading() {
-        document.querySelector("#es_bg .es_loading").style.display = "block";
+    function showBgFormLoading(node) {
+
+        HTML.inner(node,
+            `<div class='es_loading'>
+               <img src='https://steamcommunity-a.akamaihd.net/public/images/login/throbber.gif'>
+               <span>${Localization.str.loading}</span>
+             </div>`);
     }
 
-    function hideBgFormLoading() {
-        document.querySelector("#es_bg .es_loading").style.display = "none";
+    function hideBgFormLoading(node) {
+        node.querySelector(".es_loading").remove();
     }
 
-    function getGameSelectOptions(games) {
-        let selectedAppid = ProfileData.getBgAppid();
-        let selected = false;
-
-        let html = "<option value='0' id='0'>" + Localization.str.noneselected + "</option>";
-        for (let game of games) {
-            let id = parseInt(game[0]);
-            let title = HTML.escape(game[1]);
-
-            let selectedAttr = "";
-            if (selectedAppid === id) {
-                selectedAttr = " selected='selected'";
-                selected = true;
-            }
-            html += `<option value='${id}'${selectedAttr}>${title}</option>`;
-        }
-
-        return [selected, html];
+    function getImageUrl(name) {
+        return "https://steamcommunity.com/economy/image/" + name + "/622x349";
     }
 
-    async function onGameSelected() {
-        let appid = parseInt(document.querySelector("#es_bg_game").value);
-
-        let imgSelectNode = document.querySelector("#es_bg_img");
-        imgSelectNode.style.display = "none";
-
-        if (appid === 0) {
-            document.querySelector("#es_bg_preview").src = "";
-            return
-        }
-
-        showBgFormLoading();
+    async function selectGame(appid) {
 
         let result = await Background.action("profile.background", {
             appid: appid,
             profile: SteamId.getSteamId()
         });
-
+        _selectedAppid = appid;
         let selectedImg = ProfileData.getBgImg();
 
-        let html = "";
-        for (let value of result) {
-            let img = HTML.escape(value[0].toString());
-            let name = HTML.escape(value[1].toString());
-
-            let selectedAttr = "";
-            if (img === selectedImg) {
-                selectedAttr = " selected='selected'";
+        let images = "";
+        for (let [url, title] of result) {
+            let selectedClass = "";
+            if (selectedImg === url) {
+                selectedClass = " is-selected";
             }
 
-            html += `<option value='${img}'${selectedAttr}>${name}</option>`;
+            images +=
+                `<div class="as-pd__item${selectedClass} js-pd-img" data-img="${url}">
+                    <img src="${getImageUrl(url)}" class="as-pd__img">
+                    <div>${title}</div>
+                </div>`;
         }
 
-        HTML.inner(imgSelectNode, html);
-        imgSelectNode.style.display="block";
-        hideBgFormLoading();
-
-        onImgSelected();
-
-        // Enable the "save" button
-        document.querySelector("#es_background_save_btn").classList.remove("btn_disabled");
-    }
-
-    function onImgSelected() {
-        document.querySelector("#es_bg_preview").src
-            = "https://steamcommunity.com/economy/image/" + document.querySelector("#es_bg_img").value + "/622x349";
+        HTML.inner(_imagesNode, images);
     }
 
     ProfileEditPageClass.prototype.addBackgroundSelection = async function() {
 
         let html =
-            `<div class='group_content group_summary'>
-                <div class='formRow'>
-                    ${Localization.str.custom_background}:
-                    <span class='formRowHint' data-tooltip-text='${Localization.str.custom_background_help}'>(?)</span>
+            `<div class='js-bg-selection as-pd'>
+                
+                <div class="DialogLabel as-pd__head" data-tooltip-text='${Localization.str.custom_background_help}'>
+                    ${Localization.str.custom_background} <span class="as-pd__help">(?)</span>
                 </div>
-                <div id="es_bg" class="es_profile_group">
-                    <div id='es_bg_game_select'><select name='es_bg_game' id='es_bg_game' class='gray_bevel dynInput' style="display:none"></select></div>
-                    <div id='es_bg_img_select'><select name='es_bg_img' id='es_bg_img' class='gray_bevel dynInput' style="display:none"></select></div>
-                    <div class='es_loading'>
-                        <img src='https://steamcommunity-a.akamaihd.net/public/images/login/throbber.gif'>
-                        <span>${Localization.str.loading}</span>
-                    </div>
-                    <img id='es_bg_preview' class="es_profile_preview" src=''>
-                    <div id="es_bg_buttons" class="es_profile_buttons">
-                        <span id='es_background_remove_btn' class='btn_grey_white_innerfade btn_small'>
-                            <span>${Localization.str.remove}</span>
-                        </span>&nbsp;
-                        <span id='es_background_save_btn' class='btn_grey_white_innerfade btn_small btn_disabled'>
-                            <span>${Localization.str.save}</span>
-                        </span>
-                    </div>
+                
+                <div class="DialogInput_Wrapper _DialogLayout">
+                    <input type="text" class="DialogInput DialogInputPlaceholder DialogTextInputBase js-pd-game" value="" placeholder="${Localization.str.game_name}">
+                </div>
+                                
+                <div class="as-pd__cnt">
+                    <div class="as-pd__list js-pd-list"></div>
+                </div>
+                                
+                <div class="as-pd__cnt">
+                    <div class="as-pd__imgs js-pd-imgs"></div>
+                </div>
+                
+                <div class="as-pd__buttons">
+                    <button class='DialogButton _DialogLayout Secondary as-pd__btn js-as-pd-bg-clear'>${Localization.str.thewordclear}</button>
+                    <button class='DialogButton _DialogLayout Primary as-pd__btn js-as-pd-bg-save'>${Localization.str.save}</button>
                 </div>
             </div>`;
 
-        HTML.beforeBegin(".group_content_bodytext", html);
-        ExtensionLayer.runInPageContext(() => { SetupTooltips({ tooltipCSSClass: "community_tooltip" }); });
+        let active = false;
 
-        let response = await Background.action('profile.background.games');
-
-        let gameSelectNode = document.querySelector("#es_bg_game");
-        let imgSelectNode = document.querySelector("#es_bg_img");
-
-        let gameList = getGameSelectOptions(response);
-        HTML.inner(gameSelectNode, gameList[1]);
-        gameSelectNode.style.display = "block";
-
-        let currentImg = ProfileData.getBgImgUrl(622,349);
-        if (currentImg) {
-            document.querySelector("#es_bg_preview").src = currentImg;
-            onGameSelected();
+        function getSafeString(value) {
+            return value.toLowerCase().replace(/[^a-z0-9 ]/g, "");
         }
 
-        hideBgFormLoading();
+        async function checkPage() {
 
-        // on game selected
-        gameSelectNode.addEventListener("change", onGameSelected);
-        imgSelectNode.addEventListener("change", onImgSelected);
+            if (document.querySelector(`[href$="/edit/background"].active`)) {
 
-        document.querySelector("#es_background_remove_btn").addEventListener("click", async function() {
-            await ProfileData.clearOwn();
-            window.location.href = Config.ApiServerHost + `/v01/profile/background/edit/delete/`;
-        });
+                if (active) { return; } // Happens because the below code will trigger the observer again
 
-        document.querySelector("#es_background_save_btn").addEventListener("click", async function(e) {
-            if (e.target.closest("#es_background_save_btn").classList.contains("btn_disabled")) { return; }
-            await ProfileData.clearOwn();
+                HTML.beforeEnd(`[class^="profileeditshell_PageContent_"]`, html);
 
-            let selectedAppid = encodeURIComponent(gameSelectNode.value);
-            let selectedImg = encodeURIComponent(imgSelectNode.value);
-            window.location.href = Config.ApiServerHost+`/v01/profile/background/edit/save/?appid=${selectedAppid}&img=${selectedImg}`;
-        });
+                _gameFilterNode = document.querySelector(".js-pd-game");
+                _listNode = document.querySelector(".js-pd-list");
+                _imagesNode = document.querySelector(".js-pd-imgs");
+
+                active = true;
+
+                ExtensionLayer.runInPageContext(() => { SetupTooltips({ tooltipCSSClass: "community_tooltip" }); });
+
+                _selectedAppid = ProfileData.getBgAppid();
+                let selectedGameKey = null;
+
+                showBgFormLoading(_listNode);
+
+                let games = await Background.action("profile.background.games");
+
+                for (let key in games) {
+                    if (!games.hasOwnProperty(key)) { continue; }
+                    games[key][2] = getSafeString(games[key][1]);
+
+                    if (games[key][0] === _selectedAppid) {
+                        selectedGameKey = key;
+                    }
+                }
+
+                hideBgFormLoading(_listNode);
+
+                let timeout = null;
+
+                _listNode.addEventListener("click", (e) => {
+                    if (!e.target.dataset.appid) { return; }
+                    selectGame(e.target.dataset.appid);
+                });
+
+                _imagesNode.addEventListener("click", (e) => {
+                    let node = e.target.closest(".js-pd-img");
+
+                    if (!node) { return; }
+                    _selectedImage = node.dataset.img;
+
+                    let currentSelected = document.querySelector(".js-pd-img.is-selected");
+                    if (currentSelected) {
+                        currentSelected.classList.remove("is-selected");
+                    }
+
+                    node.classList.add("is-selected");
+                });
+
+                _gameFilterNode.addEventListener("keyup", () => {
+
+                    if (timeout) {
+                        window.clearTimeout(timeout);
+                    }
+
+                    timeout = window.setTimeout(() => {
+
+                        const max = 100;
+                        let value = getSafeString(_gameFilterNode.value);
+                        if (value === "") { return; }
+
+                        let i = 0;
+                        let list = "";
+                        for (let [appid, title, safeTitle] of games) {
+                            if (safeTitle.includes(value)) {
+                                list += `<div class='as-pd__item js-pd-item' data-appid="${appid}">${title}</div>`;
+                                i++;
+                            }
+                            if (i >= max) { break; }
+                        }
+                        HTML.inner(_listNode, list);
+                    }, 200);
+                });
+
+                if (games[selectedGameKey]) {
+                    _gameFilterNode.value = games[selectedGameKey][1];
+
+                    if (_selectedAppid) {
+                        selectGame(_selectedAppid);
+                    }
+                }
+
+                document.querySelector(".js-as-pd-bg-clear").addEventListener("click", async function(e) {
+                    await ProfileData.clearOwn();
+                    window.location.href = Config.ApiServerHost + `/v01/profile/background/edit/delete/`;
+                });
+
+                document.querySelector(".js-as-pd-bg-save").addEventListener("click", async function(e) {
+                    if (_selectedImage && _selectedAppid) {
+                        await ProfileData.clearOwn();
+
+                        let selectedAppid = encodeURIComponent(_selectedAppid);
+                        let selectedImg = encodeURIComponent(_selectedImage);
+                        window.location.href = Config.ApiServerHost+`/v01/profile/background/edit/save/?appid=${selectedAppid}&img=${selectedImg}`;
+                    }
+                });
+
+            } else if (active) {
+                DOMHelper.remove(".js-bg-selection");
+                active = false;
+            }
+        }
+
+        checkPage();
+
+        new MutationObserver(checkPage).observe(document.querySelector(`[class^="profileeditshell_PageContent_"]`), {"childList": true});
     };
 
     ProfileEditPageClass.prototype.addStyleSelection = function() {
         let html =
-            `<div class='group_content group_summary'>
-                <div class='formRow'>
-                    ${Localization.str.custom_style}:
-                    <span class='formRowHint' data-tooltip-text='${Localization.str.custom_style_help}'>(?)</span>
+            `<div class="js-style-selection as-pd">
+                
+                <div class='as-pd__head' data-tooltip-text='${Localization.str.custom_style_help}'>
+                    ${Localization.str.custom_style} <span class="as-pd__help">(?)</span>
                 </div>
-                <div class="es_profile_group">
-                    <div id='es_style_select'>
-                        <select name='es_style' id='es_style' class='gray_bevel dynInput'>
+                
+                <div class="as-pd__cnt">
+                    <div>
+                        <select name='es_style' id='es_style' class='gray_bevel dynInput as-pd__select'>
                             <option id='remove' value='remove'>${Localization.str.noneselected}</option>
                             <option id='goldenprofile' value='goldenprofile'>Lunar Sale 2019</option>
                             <option id='holiday2014' value='holiday2014'>Holiday Profile 2014</option>
@@ -1414,61 +1483,75 @@ let ProfileEditPageClass = (function(){
                             <option id='grey' value='grey'>Grey Theme</option>
                         </select>
                     </div>
-                    <img id='es_style_preview' class="es_profile_preview" src=''>
-                    <div id="es_style_buttons" class="es_profile_buttons">
-                        <span id='es_style_remove_btn' class='btn_grey_white_innerfade btn_small'>
-                            <span>${Localization.str.remove}</span>
-                        </span>&nbsp;
-                        <span id='es_style_save_btn' class='btn_grey_white_innerfade btn_small btn_disabled'>
-                            <span>${Localization.str.save}</span>
-                        </span>
-                    </div>
+                    <img id='es_style_preview' class="as-pd__preview" src=''>
+                </div>
+                
+                <div id="es_style_buttons" class="as-pd__buttons">
+                    <button id='es_style_save_btn' class='DialogButton _DialogLayout Primary as-pd__btn'>${Localization.str.save}</button>
                 </div>
             </div>`;
 
-        HTML.beforeBegin(".group_content_bodytext", html);
+        let active = false;
 
-        ExtensionLayer.runInPageContext(() => { SetupTooltips({ tooltipCSSClass: "community_tooltip" }); });
+        function checkPage() {
 
-        let styleSelectNode = document.querySelector("#es_style");
+            if (document.querySelector(`[href$="/edit/theme"].active`)) {
 
-        let currentStyle = ProfileData.getStyle();
-        if (currentStyle) {
-            styleSelectNode.value = currentStyle;
+                if (active) { return; } // Happens because the below code will trigger the observer again
 
-            let imgNode = document.querySelector("#es_style_preview");
-            imgNode.src = ExtensionResources.getURL("img/profile_styles/" + currentStyle + "/preview.png");
+                HTML.beforeEnd(`[class^="profileeditshell_PageContent_"]`, html);
+                active = true;
 
-            if (currentStyle === "remove") {
-                imgNode.style.display = "none";
+                ExtensionLayer.runInPageContext(() => { SetupTooltips({ tooltipCSSClass: "community_tooltip" }); });
+
+                let styleSelectNode = document.querySelector("#es_style");
+
+                let currentStyle = ProfileData.getStyle();
+                if (currentStyle) {
+                    styleSelectNode.value = currentStyle;
+
+                    let imgNode = document.querySelector("#es_style_preview");
+                    imgNode.src = ExtensionResources.getURL("img/profile_styles/" + currentStyle + "/preview.png");
+
+                    if (currentStyle === "remove") {
+                        imgNode.style.display = "none";
+                    }
+                }
+
+                styleSelectNode.addEventListener("change", function(){
+                    let imgNode = document.querySelector("#es_style_preview");
+                    if (styleSelectNode.value === "remove") {
+                        imgNode.style.display = "none";
+                    } else {
+                        imgNode.style.display = "block";
+                        imgNode.src = ExtensionResources.getURL("img/profile_styles/" + styleSelectNode.value + "/preview.png");
+                    }
+
+                    // Enable the "save" button
+                    document.querySelector("#es_style_save_btn").classList.remove("btn_disabled");
+                });
+
+                document.querySelector("#es_style_save_btn").addEventListener("click", async function(e) {
+                    if (e.target.closest("#es_style_save_btn").classList.contains("btn_disabled")) { return; }
+                    await ProfileData.clearOwn();
+
+                    if (styleSelectNode.value === "remove") {
+                        window.location.href = Config.ApiServerHost + "/v01/profile/style/edit/delete/";
+                    } else {
+                        let selectedStyle = encodeURIComponent(styleSelectNode.value);
+                        window.location.href = Config.ApiServerHost+`/v01/profile/style/edit/save/?style=${selectedStyle}`;
+                    }
+                });
+
+            } else if (active) {
+                DOMHelper.remove(".js-style-selection");
+                active = false;
             }
         }
 
-        styleSelectNode.addEventListener("change", function(){
-            let imgNode = document.querySelector("#es_style_preview");
-            if (styleSelectNode.value === "remove") {
-                imgNode.style.display = "none";
-            } else {
-                imgNode.style.display = "block";
-                imgNode.src = ExtensionResources.getURL("img/profile_styles/" + styleSelectNode.value + "/preview.png");
-            }
+        checkPage();
 
-            // Enable the "save" button
-            document.querySelector("#es_style_save_btn").classList.remove("btn_disabled");
-        });
-
-        document.querySelector("#es_style_save_btn").addEventListener("click", async function(e) {
-            if (e.target.closest("#es_style_save_btn").classList.contains("btn_disabled")) { return; }
-            await ProfileData.clearOwn();
-
-            let selectedStyle = encodeURIComponent(styleSelectNode.value);
-            window.location.href = Config.ApiServerHost+`/v01/profile/style/edit/save/?style=${selectedStyle}`;
-        });
-
-        document.querySelector("#es_style_remove_btn").addEventListener("click", async function(e) {
-            await ProfileData.clearOwn();
-            window.location.href = Config.ApiServerHost + "/v01/profile/style/edit/delete/";
-        });
+        new MutationObserver(checkPage).observe(document.querySelector(`[class^="profileeditshell_PageContent_"]`), {"childList": true});
     };
 
     return ProfileEditPageClass;
@@ -3356,7 +3439,7 @@ let MarketListingPageClass = (function(){
     }
 
     MarketListingPageClass.prototype.addSoldAmountLastDay = async function() {
-        let country = User.country;
+        let country = User.storeCountry;
         let currencyNumber = Currency.currencyTypeToNumber(Currency.storeCurrency);
 
         let link = DOMHelper.selectLastNode(document, ".market_listing_nav a").href;
@@ -3653,7 +3736,7 @@ let MarketPageClass = (function(){
     MarketPageClass.prototype.addLowestMarketPrice = function() {
         if (!User.isSignedIn || !SyncedStorage.get("showlowestmarketprice") || SyncedStorage.get("hideactivelistings")) { return; }
 
-        let country = User.country;
+        let country = User.storeCountry;
         let currencyNumber = Currency.currencyTypeToNumber(Currency.storeCurrency);
 
         let loadedMarketPrices = {};
